@@ -1,0 +1,19 @@
+{
+"compilerOptions": {
+    "lib": ["es2021"],
+    "outDir": "./dist/",
+    "noImplicitAny": false,
+    "module": "commonjs",
+    "target": "es2021",
+    "moduleResolution": "Node",
+    "strict": false,
+    
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true
+    },
+"files": [
+    "main.ts"
+]
+}
