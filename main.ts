@@ -1,4 +1,4 @@
-import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableXClient } from '@imtbl/imx-sdk';
+import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableTransactionStatus, ImmutableXClient } from '@imtbl/imx-sdk';
 import fs from 'fs';
 import Web3 from 'web3';
 
@@ -113,7 +113,7 @@ async function calcAssetsTotalValue(assets: Array<any>) {
 }
 
 
-async function getBestBuyOrder(client: ImmutableXClient, asset) {
+async function getBestSellOrder(client: ImmutableXClient, asset) {
   const metadata = JSON.stringify({
     proto: [`${asset.metadata.proto}`],  // sic! Array must consist of strings
     quality: [asset.metadata.quality]
@@ -137,7 +137,9 @@ async function getBestBuyOrder(client: ImmutableXClient, asset) {
 
 
 async function calcAssetPrice(client: ImmutableXClient, asset): Promise<bigint> {
-  const order = await getBestBuyOrder(client, asset);
+  // There is no buy-limit orders on Tokentrove
+  // Use best sell price as "market" price
+  const order = await getBestSellOrder(client, asset);
 
   // Also api returns quantity_with_fees property in Decimal format
   // But this property is missing in type definitions
@@ -159,10 +161,10 @@ async function getAssetsByName(client: ImmutableXClient, name:string) {
 }
 
 
-async function main() {
-  const client = await ImmutableXClient.build({ publicApiUrl: apiAddress });
-
+async function loadAssetsFromFileAndCalcValue(client: ImmutableXClient) {
+  // You can run once to fetch assets:
   // fetchAndSaveAssets(client, myAddress);
+  // And use 'assets.json' then.
 
   console.log('loading assets from file');
   const assets = loadAssetsFromFile('assets.json');
@@ -171,6 +173,12 @@ async function main() {
   const value = await calcAssetsTotalValue(assets);
 
   console.log(`Assets total value ${weiToEth(value)} Eth`);
+}
+
+
+async function main() {
+  const client = await ImmutableXClient.build({ publicApiUrl: apiAddress });
+
 }
 
 
