@@ -6,7 +6,7 @@
     "module": "commonjs",
     "target": "es2021",
     "moduleResolution": "Node",
-    "strict": false,
+    "strict": true,
     
     "esModuleInterop": true,
     "skipLibCheck": true,
