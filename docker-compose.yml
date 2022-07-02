@@ -1,0 +1,14 @@
+version: '2.2'
+
+services:
+  postgres:
+    image: postgres:14.4-alpine
+    environment:
+      - POSTGRES_USER=imx
+      - POSTGRES_PASSWORD=imx
+      - POSTGRES_DB=imx
+    volumes:
+      - /home/evgeny/postgres-2/immutable-history-2/data:/var/lib/postgresql/data
+      - /home/evgeny/blockchain-projects/immutable-history-2:/etc/postgresql/postgresql.conf 
+    ports:
+      - "55500:5432"
