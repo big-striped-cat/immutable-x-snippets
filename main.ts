@@ -1,7 +1,12 @@
 import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableTransactionStatus, ImmutableXClient } from '@imtbl/imx-sdk';
 import fs from 'fs';
 import Web3 from 'web3';
-import _ from 'underscore'
+import _ from 'underscore';
+import moment from 'moment';
+
+import { AsyncIndependentJob, AsyncChordJob, RetryOptions, AsyncJob } from './etl';
+
+
 const linkAddress = 'https://link.x.immutable.com';
 const apiAddress = 'https://api.x.immutable.com/v1';
 
@@ -141,6 +146,11 @@ async function calcAssetPrice(client: ImmutableXClient, asset): Promise<bigint> 
   // Use best sell price as "market" price
   const order = await getBestSellOrder(client, asset);
 
+  if (!order) {
+    console.warn('no sell orders');
+    return BigInt(0);
+  }
+
   // Also api returns quantity_with_fees property in Decimal format
   // But this property is missing in type definitions
   return order.buy.data.quantity.toBigInt();
@@ -237,10 +247,122 @@ async function fetchTradesExample(client: ImmutableXClient) {
 }
 
 
+
+async function fetchProtoPrice(
+  client: ImmutableXClient, 
+  proto: number
+): Promise<{
+  proto: number, 
+  price?: BigInt
+}> {
+  console.log(`fetch price for proto ${proto}`);
+
+  const price = await calcAssetPrice(client, {
+    metadata: {
+      proto: proto,
+      quality: 'Meteorite'
+    }
+  });
+
+  return {
+    proto: proto,
+    price: price
+  };
+}
+
+
+function defaultRetryOptions(): RetryOptions {
+  return {
+    maxRetries: 5
+  };
+}
+
+
+function createFetchProtoPriceJob (
+  client: ImmutableXClient, 
+  proto: number
+): AsyncJob {
+  return new AsyncIndependentJob(
+    _.partial(fetchProtoPrice, client, proto), 
+    defaultRetryOptions()
+  );
+}
+
+
+type ProtoPriceResult = {
+  price: BigInt, 
+  proto: number
+};
+
+
+async function reduceProtoPriceResults(results: ProtoPriceResult[]) {
+  const pricesObj = _.reduce(
+    results, 
+    function(memo, item) {
+      memo[item.proto] = item.price.toString(); 
+      return memo;
+    },
+    {}
+  );
+
+  const dateStr = moment().format('YYYY-MM-DD');
+  const path = `data/prices-${dateStr}.json`;
+  console.log(`Save to ${path}`);
+
+  fs.writeFileSync(path, JSON.stringify(pricesObj, null, ' '));
+}
+
+
+function createFetchProtoRangePriceJob(
+  client: ImmutableXClient, 
+  range: {from: number, to: number}
+): AsyncChordJob {
+  const deps: AsyncJob[] = []; 
+
+  for (let proto=range.from; proto < range.to; proto++) {
+    deps.push(createFetchProtoPriceJob(client, proto));
+  }
+
+  return new AsyncChordJob(reduceProtoPriceResults, deps, defaultRetryOptions());
+}
+
+
+async function fetchProtoRangePrices(
+  client: ImmutableXClient, 
+  range: {from: number, to: number}
+): Promise<{
+  proto: number, 
+  price: BigInt
+}[]> {
+  const prices: {proto: number, price: BigInt}[] = [];
+
+  for (let proto=range.from; proto < range.to; proto++) {
+    console.log(`fetch price for proto ${proto}`);
+
+    let price = await calcAssetPrice(client, {
+      metadata: {
+        proto: proto,
+        quality: 'Meteorite'
+      }
+    });
+    prices.push({
+      proto: proto, 
+      price: price
+    });
+  }
+  return prices;
+}
+
+
 async function main() {
   const client = await ImmutableXClient.build({ publicApiUrl: apiAddress });
+  const protoMax = 1800;
 
-  const assets = await fetchTradesExample(client);
+  const pricesList = await createFetchProtoRangePriceJob(
+    client, 
+    {from: 1, to: protoMax}
+  ).exec();
+
 }
 
 
