@@ -18,7 +18,12 @@
                 "${workspaceFolder}/dist/**/*.js"
             ],
             "env": {
-                "MY_WALLET_ADDRESS": "0x66ea6a54749403DADbf187dD1cCF5Ac8eeAaE1b6"
+                "MY_WALLET_ADDRESS": "0x66ea6a54749403DADbf187dD1cCF5Ac8eeAaE1b6",
+                "PGHOST": "localhost",
+                "PGUSER": "imx",
+                "PGDATABASE": "imx",
+                "PGPASSWORD": "imx",
+                "PGPORT": 55500
             }
         }
     ]
