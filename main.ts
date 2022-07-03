@@ -3,6 +3,7 @@ import fs from 'fs';
 import Web3 from 'web3';
 import _ from 'underscore';
 import moment from 'moment';
+import { Pool, Client as PGClient } from 'pg';
 
 import { AsyncIndependentJob, AsyncChordJob, RetryOptions, AsyncJob } from './etl';
 
@@ -306,10 +307,25 @@ async function reduceProtoPriceResults(results: ProtoPriceResult[]) {
   );
 
   const dateStr = moment().format('YYYY-MM-DD');
-  const path = `data/prices-${dateStr}.json`;
-  console.log(`Save to ${path}`);
+  const pricesJson = JSON.stringify(pricesObj, null, '');
 
-  fs.writeFileSync(path, JSON.stringify(pricesObj, null, ' '));
+  const client = new PGClient();
+  await client.connect();
+
+  const query = 'INSERT INTO price(date, values) VALUES ' + 
+    `('${dateStr}', '${pricesJson}') ` +
+    `ON CONFLICT (date) DO UPDATE SET values = price.values || '${pricesJson}'::jsonb`;
+  console.debug(query);
+
+  try {
+    const res = await client.query(
+      query
+    );
+  } catch (err: any) {
+    console.log(err.stack);
+  }
+
+  await client.end();
 }
 
 
@@ -324,33 +340,6 @@ function createFetchProtoRangePriceJob(
   }
 
   return new AsyncChordJob(reduceProtoPriceResults, deps, defaultRetryOptions());
-}
-
-
-async function fetchProtoRangePrices(
-  client: ImmutableXClient, 
-  range: {from: number, to: number}
-): Promise<{
-  proto: number, 
-  price: BigInt
-}[]> {
-  const prices: {proto: number, price: BigInt}[] = [];
-
-  for (let proto=range.from; proto < range.to; proto++) {
-    console.log(`fetch price for proto ${proto}`);
-
-    let price = await calcAssetPrice(client, {
-      metadata: {
-        proto: proto,
-        quality: 'Meteorite'
-      }
-    });
-    prices.push({
-      proto: proto, 
-      price: price
-    });
-  }
-  return prices;
 }
 
 
