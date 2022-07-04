@@ -3,28 +3,12 @@ import fs from 'fs';
 import Web3 from 'web3';
 import _ from 'underscore';
 import moment from 'moment';
-import { Pool, Client as PGClient } from 'pg';
+import { Client as PGClient } from 'pg';
 
 import { AsyncIndependentJob, AsyncChordJob, RetryOptions, AsyncJob } from './etl';
 
 
-const linkAddress = 'https://link.x.immutable.com';
 const apiAddress = 'https://api.x.immutable.com/v1';
-
-// Ropsten Testnet
-//const linkAddress = 'https://link.ropsten.x.immutable.com';
-//const apiAddress = 'https://api.ropsten.x.immutable.com/v1';
-
-
-// Link SDK, in browser only
-// const link = new Link(linkAddress);
-
-// IMX Client
-
-// const client = (async () => {
-//     return await ImmutableXClient.build({ publicApiUrl: apiAddress });
-// })();
-
 
 const GUCollectionAddress = '0xacb3c6a43d15b907e8433077b6d38ae40936fe2c';
 
@@ -39,6 +23,11 @@ console.log('myAddress ' + myAddress);
 
 function weiToEth(value: BigInt): string {
   return Web3.utils.fromWei(value.toString());
+}
+
+
+async function createImmutableXClient(): Promise<ImmutableXClient> {
+  return await ImmutableXClient.build({ publicApiUrl: apiAddress });
 }
 
 
@@ -343,16 +332,7 @@ function createFetchProtoRangePriceJob(
 }
 
 
-async function main() {
-  const client = await ImmutableXClient.build({ publicApiUrl: apiAddress });
-  const protoMax = 1800;
-
-  const pricesList = await createFetchProtoRangePriceJob(
-    client, 
-    {from: 1, to: protoMax}
-  ).exec();
-
-}
-
-
-main().catch(e => console.log(e));
+export {
+  createImmutableXClient,
+  createFetchProtoRangePriceJob
+};
