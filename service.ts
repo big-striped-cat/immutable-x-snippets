@@ -1,6 +1,6 @@
 import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableTransactionStatus, ImmutableXClient } from '@imtbl/imx-sdk';
 import fs from 'fs';
-import Web3 from 'web3';
+import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
 import { Client as PGClient } from 'pg';
@@ -9,7 +9,7 @@ import { AsyncIndependentJob, AsyncChordJob, RetryOptions, AsyncJob } from './et
 
 
 const apiAddress = 'https://api.x.immutable.com/v1';
-
+ 
 const GUCollectionAddress = '0xacb3c6a43d15b907e8433077b6d38ae40936fe2c';
 
 const ERC20TokenAddress = {
@@ -22,7 +22,7 @@ console.log('myAddress ' + myAddress);
 
 
 function weiToEth(value: BigInt): string {
-  return Web3.utils.fromWei(value.toString());
+  return Web3.fromWei(value.toString());
 }
 
 
