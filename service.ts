@@ -1,31 +1,16 @@
 import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableTransactionStatus, ImmutableXClient } from '@imtbl/imx-sdk';
 import fs from 'fs';
-import Web3 from 'web3';
+import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
-import { Pool, Client as PGClient } from 'pg';
+import { Client as PGClient } from 'pg';
 
 import { AsyncIndependentJob, AsyncChordJob, RetryOptions, AsyncJob } from './etl';
+import { logger } from './logger';
 
 
-const linkAddress = 'https://link.x.immutable.com';
 const apiAddress = 'https://api.x.immutable.com/v1';
-
-// Ropsten Testnet
-//const linkAddress = 'https://link.ropsten.x.immutable.com';
-//const apiAddress = 'https://api.ropsten.x.immutable.com/v1';
-
-
-// Link SDK, in browser only
-// const link = new Link(linkAddress);
-
-// IMX Client
-
-// const client = (async () => {
-//     return await ImmutableXClient.build({ publicApiUrl: apiAddress });
-// })();
-
-
+ 
 const GUCollectionAddress = '0xacb3c6a43d15b907e8433077b6d38ae40936fe2c';
 
 const ERC20TokenAddress = {
@@ -34,11 +19,15 @@ const ERC20TokenAddress = {
 }
 
 const myAddress = process.env.MY_WALLET_ADDRESS;
-console.log('myAddress ' + myAddress);
 
 
 function weiToEth(value: BigInt): string {
-  return Web3.utils.fromWei(value.toString());
+  return Web3.fromWei(value.toString());
+}
+
+
+async function createImmutableXClient(): Promise<ImmutableXClient> {
+  return await ImmutableXClient.build({ publicApiUrl: apiAddress });
 }
 
 
@@ -59,7 +48,7 @@ function saveAssets(assets: any[], path: string) {
   try {
     fs.writeFileSync(path, JSON.stringify(assets, null, ' '));
   } catch (err) {
-    console.error(err);
+    logger.error(err);
   }
 }
 
@@ -94,11 +83,11 @@ function groupAssetsByProtoQuality(assets) {
 
 
 async function calcAssetsTotalValue(assets: Array<any>) {
-  console.log(`total assets: ${assets.length}`)
+  logger.info(`total assets: ${assets.length}`)
   
   const assetsUniq = groupAssetsByProtoQuality(assets);
 
-  console.log(`total uniq assets: ${Object.keys(assetsUniq).length}`)
+  logger.info(`total uniq assets: ${Object.keys(assetsUniq).length}`)
 
   const client = await ImmutableXClient.build({ publicApiUrl: apiAddress });
 
@@ -108,10 +97,10 @@ async function calcAssetsTotalValue(assets: Array<any>) {
     let asset = assetsUniq[key][0];
     let assetsNumber = assetsUniq[key].length;
 
-    console.log(`Calculating asset price for ${asset.metadata.name}, quality=${asset.metadata.quality}, number=${assetsNumber}`);
+    logger.info(`Calculating asset price for ${asset.metadata.name}, quality=${asset.metadata.quality}, number=${assetsNumber}`);
     let assetPrice = await calcAssetPrice(client, asset);
     
-    console.log(`Asset price: ${weiToEth(assetPrice)} Eth`);
+    logger.info(`Asset price: ${weiToEth(assetPrice)} Eth`);
 
     value += BigInt(assetsNumber) * assetPrice;
   }
@@ -148,7 +137,7 @@ async function calcAssetPrice(client: ImmutableXClient, asset): Promise<bigint> 
   const order = await getBestSellOrder(client, asset);
 
   if (!order) {
-    console.warn('no sell orders');
+    logger.warn('no sell orders');
     return BigInt(0);
   }
 
@@ -177,13 +166,13 @@ async function loadAssetsFromFileAndCalcValue(client: ImmutableXClient) {
   // fetchAndSaveAssets(client, myAddress);
   // And use 'assets.json' then.
 
-  console.log('loading assets from file');
+  logger.info('loading assets from file');
   const assets = loadAssetsFromFile('assets.json');
 
-  console.log('getting assets value');
+  logger.info('getting assets value');
   const value = await calcAssetsTotalValue(assets);
 
-  console.log(`Assets total value ${weiToEth(value)} Eth`);
+  logger.info(`Assets total value ${weiToEth(value)} Eth`);
 }
 
 
@@ -214,7 +203,7 @@ async function fetchTrades(client: ImmutableXClient, options) {
   let pageNum = 1;  
 
   do {
-    console.debug('requesting page ', pageNum);
+    logger.debug('requesting page ', pageNum);
 
     let tradeRequest = await client.getTrades({
       ...options,
@@ -228,11 +217,11 @@ async function fetchTrades(client: ImmutableXClient, options) {
     tradeCursor = tradeRequest.cursor
     pageNum++;
 
-    console.debug(`${tradeRequest.result.length} items on page`);
+    logger.debug(`${tradeRequest.result.length} items on page`);
   } while (tradeCursor)
   
-  // console.log('Trades:');
-  // console.log(JSON.stringify(trades, null, '  '));
+  // logger.info('Trades:');
+  // logger.info(JSON.stringify(trades, null, '  '));
   return trades;
 }
 
@@ -244,7 +233,7 @@ async function fetchTradesExample(client: ImmutableXClient) {
     max_timestamp: "2022-05-27T01:00:00Z"
   };
   const trades = await fetchTrades(client, params);
-  console.log('total trades: ', trades.length);
+  logger.info('total trades: ', trades.length);
 }
 
 
@@ -256,7 +245,7 @@ async function fetchProtoPrice(
   proto: number, 
   price?: BigInt
 }> {
-  console.log(`fetch price for proto ${proto}`);
+  logger.info(`fetch price for proto ${proto}`);
 
   const price = await calcAssetPrice(client, {
     metadata: {
@@ -315,14 +304,14 @@ async function reduceProtoPriceResults(results: ProtoPriceResult[]) {
   const query = 'INSERT INTO price(date, values) VALUES ' + 
     `('${dateStr}', '${pricesJson}') ` +
     `ON CONFLICT (date) DO UPDATE SET values = price.values || '${pricesJson}'::jsonb`;
-  console.debug(query);
+  logger.debug(query);
 
   try {
     const res = await client.query(
       query
     );
   } catch (err: any) {
-    console.log(err.stack);
+    logger.info(err.stack);
   }
 
   await client.end();
@@ -343,16 +332,7 @@ function createFetchProtoRangePriceJob(
 }
 
 
-async function main() {
-  const client = await ImmutableXClient.build({ publicApiUrl: apiAddress });
-  const protoMax = 1800;
-
-  const pricesList = await createFetchProtoRangePriceJob(
-    client, 
-    {from: 1, to: protoMax}
-  ).exec();
-
-}
-
-
-main().catch(e => console.log(e));
+export {
+  createImmutableXClient,
+  createFetchProtoRangePriceJob
+};
