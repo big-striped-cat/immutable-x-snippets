@@ -3,9 +3,9 @@ import fs from 'fs';
 import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
-import { Client as PGClient } from 'pg';
+import * as db from './db';
 
-import { AsyncIndependentJob, AsyncChordJob, RetryOptions, AsyncJob } from './etl';
+import { AsyncIndependentJob, AsyncJobSequence, RetryOptions, AsyncJob } from './etl';
 import { logger } from './logger';
 
 
@@ -21,8 +21,13 @@ const ERC20TokenAddress = {
 const myAddress = process.env.MY_WALLET_ADDRESS;
 
 
-function weiToEth(value: BigInt): string {
+function weiToEth(value: bigint): string {
   return Web3.fromWei(value.toString());
+}
+
+
+function weiToGwei(value: bigint): bigint {
+  return value / BigInt(10) ** BigInt(9);
 }
 
 
@@ -237,7 +242,6 @@ async function fetchTradesExample(client: ImmutableXClient) {
 }
 
 
-
 async function fetchProtoPrice(
   client: ImmutableXClient, 
   proto: number
@@ -253,6 +257,16 @@ async function fetchProtoPrice(
       quality: 'Meteorite'
     }
   });
+
+  const dateStr = moment().format('YYYY-MM-DD');
+  const priceGwei = weiToGwei(price);
+
+  const query = 'INSERT INTO proto_price(date, proto, price) VALUES ' + 
+    `('${dateStr}', ${proto}, ${priceGwei})` +
+    `ON CONFLICT (date, proto) DO UPDATE SET price = ${priceGwei}`;
+  logger.debug(query);
+
+  await db.query(query, []);
 
   return {
     proto: proto,
@@ -279,56 +293,17 @@ function createFetchProtoPriceJob (
 }
 
 
-type ProtoPriceResult = {
-  price: BigInt, 
-  proto: number
-};
-
-
-async function reduceProtoPriceResults(results: ProtoPriceResult[]) {
-  const pricesObj = _.reduce(
-    results, 
-    function(memo, item) {
-      memo[item.proto] = item.price.toString(); 
-      return memo;
-    },
-    {}
-  );
-
-  const dateStr = moment().format('YYYY-MM-DD');
-  const pricesJson = JSON.stringify(pricesObj, null, '');
-
-  const client = new PGClient();
-  await client.connect();
-
-  const query = 'INSERT INTO price(date, values) VALUES ' + 
-    `('${dateStr}', '${pricesJson}') ` +
-    `ON CONFLICT (date) DO UPDATE SET values = price.values || '${pricesJson}'::jsonb`;
-  logger.debug(query);
-
-  try {
-    const res = await client.query(
-      query
-    );
-  } catch (err: any) {
-    logger.info(err.stack);
-  }
-
-  await client.end();
-}
-
-
 function createFetchProtoRangePriceJob(
   client: ImmutableXClient, 
   range: {from: number, to: number}
-): AsyncChordJob {
+): AsyncJobSequence {
   const deps: AsyncJob[] = []; 
 
   for (let proto=range.from; proto < range.to; proto++) {
     deps.push(createFetchProtoPriceJob(client, proto));
   }
 
-  return new AsyncChordJob(reduceProtoPriceResults, deps, defaultRetryOptions());
+  return new AsyncJobSequence(deps, defaultRetryOptions());
 }
 
 
