@@ -51,6 +51,30 @@ class AsyncIndependentJob implements AsyncJob {
 }
 
 
+class AsyncJobSequence implements AsyncJob {
+  items: AsyncJob[]
+  retryOptions: RetryOptions
+
+  constructor (
+    items: AsyncJob[],
+    retryOptions: RetryOptions
+  ) {
+    this.items = items;
+    this.retryOptions = retryOptions;
+  }
+
+  async exec (): Promise<Promise<any>[]> {
+    const results: Promise<any>[] = [];
+
+    for (let job of this.items) {
+      results.push(
+        await job.exec()
+      );
+    }
+    return results;
+  }
+}
+
 type chordFunc = (depsResults: any[]) => Promise<any>
 
 
@@ -81,4 +105,4 @@ class AsyncChordJob implements AsyncJob {
   }
 }
 
-export {AsyncJob, AsyncIndependentJob, AsyncChordJob, RetryOptions};
+export {AsyncJob, AsyncIndependentJob, AsyncJobSequence, AsyncChordJob, RetryOptions};

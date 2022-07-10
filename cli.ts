@@ -26,6 +26,8 @@ program.command('fetch-prices')
             client, 
             {from: from, to: to}
         ).exec();
+
+        logger.info('command finished');
     });
 
 
