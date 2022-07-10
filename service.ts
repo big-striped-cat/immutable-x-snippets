@@ -18,8 +18,6 @@ const ERC20TokenAddress = {
   IMX: '0xf57e7e7c23978c3caec3c3548e3d615c346e79ff'
 }
 
-const myAddress = process.env.MY_WALLET_ADDRESS;
-
 
 function weiToEth(value: bigint): string {
   return Web3.fromWei(value.toString());
@@ -163,82 +161,6 @@ async function getAssetsByName(client: ImmutableXClient, name:string) {
   });
 
   return assetRequest.result;
-}
-
-
-async function loadAssetsFromFileAndCalcValue(client: ImmutableXClient) {
-  // You can run once to fetch assets:
-  // fetchAndSaveAssets(client, myAddress);
-  // And use 'assets.json' then.
-
-  logger.info('loading assets from file');
-  const assets = loadAssetsFromFile('assets.json');
-
-  logger.info('getting assets value');
-  const value = await calcAssetsTotalValue(assets);
-
-  logger.info(`Assets total value ${weiToEth(value)} Eth`);
-}
-
-
-async function fetchTrades(client: ImmutableXClient, options) {
-  // About 1k trades per hour for Gods Unchained
-  // 
-  // Example trade
-  // {
-  //   "transaction_id": 81718923,
-  //   "status": "success",
-  //   "a": {
-  //     "order_id": 202884374,
-  //     "token_type": "ETH",
-  //     "sold": "961000000000000"
-  //   },
-  //   "b": {
-  //     "order_id": 197261661,
-  //     "token_type": "ERC721",
-  //     "token_id": "54575984",
-  //     "token_address": "0xacb3c6a43d15b907e8433077b6d38ae40936fe2c",
-  //     "sold": "1"
-  //   },
-  //   "timestamp": "2022-05-27T00:10:17.476Z"
-  // }
-
-  let tradeCursor;
-  let trades: any[] = [];
-  let pageNum = 1;  
-
-  do {
-    logger.debug('requesting page ', pageNum);
-
-    let tradeRequest = await client.getTrades({
-      ...options,
-      status: ImmutableTransactionStatus.success,
-      party_a_token_type: ETHTokenType.ETH,
-      party_b_token_address: GUCollectionAddress,
-
-      cursor: tradeCursor
-    });
-    trades = trades.concat(tradeRequest.result)
-    tradeCursor = tradeRequest.cursor
-    pageNum++;
-
-    logger.debug(`${tradeRequest.result.length} items on page`);
-  } while (tradeCursor)
-  
-  // logger.info('Trades:');
-  // logger.info(JSON.stringify(trades, null, '  '));
-  return trades;
-}
-
-
-async function fetchTradesExample(client: ImmutableXClient) {
-  // about 1k trades per hour for Gods Unchained
-  const params = {
-    min_timestamp: "2022-05-27T00:00:00Z",
-    max_timestamp: "2022-05-27T01:00:00Z"
-  };
-  const trades = await fetchTrades(client, params);
-  logger.info('total trades: ', trades.length);
 }
 
 
