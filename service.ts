@@ -1,11 +1,10 @@
-import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableTransactionStatus, ImmutableXClient } from '@imtbl/imx-sdk';
+import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableTransactionStatus, ImmutableXClient, valueOrThrow } from '@imtbl/imx-sdk';
 import fs from 'fs';
 import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
 import * as db from './db';
 
-import { AsyncIndependentJob, AsyncJobSequence, RetryOptions, AsyncJob } from './etl';
 import { logger } from './logger';
 
 
@@ -46,68 +45,82 @@ async function fetchAssets(client: ImmutableXClient, options: object): Promise<a
   return assets;
 }
 
+async function clearAssets(wallet: string) {
+  const query = 'DELETE FROM asset WHERE wallet = $1';
+  await db.query(db.query, [wallet]);
+}
 
-function saveAssets(assets: any[], path: string) {
-  try {
-    fs.writeFileSync(path, JSON.stringify(assets, null, ' '));
-  } catch (err) {
-    logger.error(err);
+
+async function saveAssets(
+  assetsUniq: AssetsUniq, 
+  wallet: string
+) {
+  let query = 'INSERT INTO asset(date, wallet, proto, quantity) VALUES ';
+  let values: string[] = [];
+
+  const dateStr = moment().format('YYYY-MM-DD');
+
+  for (let [[proto, _], assets] of assetsUniq) {
+    values.push(`('${dateStr}', '${wallet}', ${proto}, ${assets.length})`);
   }
+  query += values.join(', ');
+
+  logger.debug(query);
+
+  await db.query(query, []);
 }
 
 
-function loadAssetsFromFile(path: string) {
-  return JSON.parse(fs.readFileSync(path).toString());
-}
-
-
-async function fetchAndSaveAssets(client: ImmutableXClient, user: string) {
+async function fetchAndSaveAssets(client: ImmutableXClient, wallet: string) {
   const assets = await fetchAssets(
     client, {
       collection: GUCollectionAddress,
-      user: user
+      user: wallet
     }
   );
-  saveAssets(assets, 'assets.json');
+  const assetsUniq = new AssetsUniq(assets);
+
+  db.transaction(async (wallet) => {
+    await clearAssets(wallet);
+    await saveAssets(assetsUniq, wallet);
+  }, [wallet]);
 }
 
 
-function groupAssetsByProtoQuality(assets) {
-  const assetsUniq = {};
-  for (let asset of assets) {
-    const key = `${asset.metadata.proto}_${asset.metadata.quality}`;
-    if (!assetsUniq[key]) {
-      assetsUniq[key] = [];
-    }
-    assetsUniq[key].push(asset);
-  }
-  return assetsUniq;
-}
+class AssetsUniq {
+  // AssetsUniq class simulates Map<[number, string], any[]>
+  // Maps keyed by arrays do not work as expected.
 
+  private _assets: Map<string, any[]>
 
-async function calcAssetsTotalValue(assets: Array<any>) {
-  logger.info(`total assets: ${assets.length}`)
+  constructor (assets: any[]) {
+    this._assets = new Map();
+
+    for (let asset of assets) {
+      const key = this._makeKey(asset.metadata.proto, asset.metadata.quality);
   
-  const assetsUniq = groupAssetsByProtoQuality(assets);
-
-  logger.info(`total uniq assets: ${Object.keys(assetsUniq).length}`)
-
-  const client = await ImmutableXClient.build({ publicApiUrl: apiAddress });
-
-  let value = BigInt(0);
-
-  for (let key in assetsUniq) {
-    let asset = assetsUniq[key][0];
-    let assetsNumber = assetsUniq[key].length;
-
-    logger.info(`Calculating asset price for ${asset.metadata.name}, quality=${asset.metadata.quality}, number=${assetsNumber}`);
-    let assetPrice = await calcAssetPrice(client, asset);
-    
-    logger.info(`Asset price: ${weiToEth(assetPrice)} Eth`);
-
-    value += BigInt(assetsNumber) * assetPrice;
+      if (!this._assets.get(key)) {
+        this._assets.set(key, []);
+      }
+      this._assets.get(key)?.push(asset);
+    }
   }
-  return value;
+
+  _makeKey(proto: number, quality: string): string {
+    return `${proto}_${quality}`;
+  }
+
+  get(proto: number, quality?: string): any[] {
+    quality = quality || 'Meteorite';
+    return this._assets.get(this._makeKey(proto, quality)) || [];
+  }
+
+  *[Symbol.iterator]() {
+    for (let [key, value] of this._assets) {
+      let [proto, quality] = key.split('_');
+      yield [[proto, quality], value];
+    }
+  }
 }
 
 
@@ -197,39 +210,8 @@ async function fetchProtoPrice(
 }
 
 
-function defaultRetryOptions(): RetryOptions {
-  return {
-    maxRetries: 5
-  };
-}
-
-
-function createFetchProtoPriceJob (
-  client: ImmutableXClient, 
-  proto: number
-): AsyncJob {
-  return new AsyncIndependentJob(
-    _.partial(fetchProtoPrice, client, proto), 
-    defaultRetryOptions()
-  );
-}
-
-
-function createFetchProtoRangePriceJob(
-  client: ImmutableXClient, 
-  range: {from: number, to: number}
-): AsyncJobSequence {
-  const deps: AsyncJob[] = []; 
-
-  for (let proto=range.from; proto < range.to; proto++) {
-    deps.push(createFetchProtoPriceJob(client, proto));
-  }
-
-  return new AsyncJobSequence(deps, defaultRetryOptions());
-}
-
-
 export {
   createImmutableXClient,
-  createFetchProtoRangePriceJob
+  fetchProtoPrice,
+  fetchAndSaveAssets
 };

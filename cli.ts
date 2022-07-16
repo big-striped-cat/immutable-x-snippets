@@ -1,6 +1,8 @@
 import { Command } from 'commander';
 
-import { createFetchProtoRangePriceJob, createImmutableXClient } from './service';
+import { createImmutableXClient } from './service';
+import { createFetchAndSaveAssetsJob, createFetchProtoRangePriceJob } from './jobs';
+
 import { logger } from './logger';
 
 
@@ -31,6 +33,14 @@ program.command('fetch-prices')
     });
 
 
+program.command('fetch-assets')
+    .argument('<string>', 'wallet')
+    .action(async (wallet) => {
+        const client = await createImmutableXClient();
+        await createFetchAndSaveAssetsJob(client, wallet).exec();
+    });
+
+    
 (async () => {
     try {
         await program.parseAsync();
