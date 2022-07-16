@@ -6,48 +6,48 @@ import { fetchProtoPrice, fetchAndSaveAssets } from './service';
 
 
 function defaultRetryOptions(): RetryOptions {
-  return {
-    maxRetries: 5
-  };
+    return {
+        maxRetries: 5
+    };
 }
 
 
 function createFetchProtoPriceJob(
-  client: ImmutableXClient,
-  proto: number
+    client: ImmutableXClient,
+    proto: number
 ): AsyncJob {
-  return new AsyncIndependentJob(
-    _.partial(fetchProtoPrice, client, proto),
-    defaultRetryOptions()
-  );
+    return new AsyncIndependentJob(
+        _.partial(fetchProtoPrice, client, proto),
+        defaultRetryOptions()
+    );
 }
 
 
 function createFetchProtoRangePriceJob(
-  client: ImmutableXClient,
-  range: { from: number, to: number }
+    client: ImmutableXClient,
+    range: { from: number, to: number }
 ): AsyncJobSequence {
-  const deps: AsyncJob[] = [];
+    const deps: AsyncJob[] = [];
 
-  for (let proto = range.from; proto < range.to; proto++) {
-    deps.push(createFetchProtoPriceJob(client, proto));
-  }
+    for (let proto = range.from; proto < range.to; proto++) {
+        deps.push(createFetchProtoPriceJob(client, proto));
+    }
 
-  return new AsyncJobSequence(deps, defaultRetryOptions());
+    return new AsyncJobSequence(deps, defaultRetryOptions());
 }
 
 
 function createFetchAndSaveAssetsJob(
-  client: ImmutableXClient,
-  wallet: string
+    client: ImmutableXClient,
+    wallet: string
 ) {
-  return new AsyncIndependentJob(
-    _.partial(fetchAndSaveAssets, client, wallet),
-    defaultRetryOptions()
-  );
+    return new AsyncIndependentJob(
+        _.partial(fetchAndSaveAssets, client, wallet),
+        defaultRetryOptions()
+    );
 }
 
 export {
-  createFetchProtoRangePriceJob,
-  createFetchAndSaveAssetsJob
+    createFetchProtoRangePriceJob,
+    createFetchAndSaveAssetsJob
 };
