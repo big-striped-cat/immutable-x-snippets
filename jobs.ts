@@ -2,7 +2,7 @@ import { ImmutableXClient } from '@imtbl/imx-sdk';
 import _ from 'underscore';
 
 import { AsyncIndependentJob, AsyncJobSequence, RetryOptions, AsyncJob } from './etl';
-import { fetchProtoPrice, fetchAndSaveAssets } from './service';
+import { fetchAndSaveProtoPrice, fetchAndSaveAssets } from './service';
 
 
 function defaultRetryOptions(): RetryOptions {
@@ -12,12 +12,12 @@ function defaultRetryOptions(): RetryOptions {
 }
 
 
-function createFetchProtoPriceJob(
+function createFetchPriceJob(
     client: ImmutableXClient,
     proto: number
 ): AsyncJob {
     return new AsyncIndependentJob(
-        _.partial(fetchProtoPrice, client, proto),
+        _.partial(fetchAndSaveProtoPrice, client, proto),
         defaultRetryOptions()
     );
 }
@@ -30,7 +30,7 @@ function createFetchProtoRangePriceJob(
     const deps: AsyncJob[] = [];
 
     for (let proto = range.from; proto < range.to; proto++) {
-        deps.push(createFetchProtoPriceJob(client, proto));
+        deps.push(createFetchPriceJob(client, proto));
     }
 
     return new AsyncJobSequence(deps, defaultRetryOptions());

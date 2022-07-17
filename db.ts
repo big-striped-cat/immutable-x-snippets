@@ -1,26 +1,39 @@
-import { Pool } from 'pg';
+import { Sequelize } from 'sequelize';
+import { logger } from './logger';
 
-const pool = new Pool();
-
-const exit = async () => {
-    return await pool.end();
-}
-
-const query = async (text, params) => {
-    return await pool.query(text, params)
-}
 
 const transaction = async (func, args) => {
-    const client = await pool.connect();
+    const t = await sequelize.transaction();
     try {
-        await client.query('BEGIN');
         await func(...args);
+        await t.commit();
     } catch (e) {
-        await client.query('ROLLBACK')
+        await t.rollback();
         throw e;
-    } finally {
-        client.release()
     }
 }
 
-export { query, exit, transaction };
+
+const createSequelize = () => {
+    const database = process.env.PGDATABASE || '';
+    const user = process.env.PGUSER || '';
+    const host = process.env.PGHOST || '';
+    const password = process.env.PGPASSWORD || '';
+    const port = parseInt(process.env.PGPORT || '5432');
+
+    return new Sequelize(
+        database,
+        user,
+        password, {
+            host: host,
+            port: port,
+            dialect: 'postgres',
+            logging: msg => logger.debug(msg)
+        }
+    )
+}
+
+const sequelize = createSequelize();
+
+
+export { transaction, sequelize };

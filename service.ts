@@ -4,6 +4,7 @@ import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
 import * as db from './db';
+import { ProtoPrice, Asset } from './models';
 
 import { logger } from './logger';
 
@@ -45,29 +46,36 @@ async function fetchAssets(client: ImmutableXClient, options: object): Promise<a
     return assets;
 }
 
-async function clearAssets(wallet: string) {
-    const query = 'DELETE FROM asset WHERE wallet = $1';
-    await db.query(db.query, [wallet]);
+async function clearAssets(
+    date: string,
+    wallet: string
+) {    
+    await Asset.destroy({
+        where: {
+            date: date,
+            wallet: wallet,
+        }
+    });
 }
 
 
 async function saveAssets(
-    assetsUniq: AssetsUniq, 
+    assetsUniq: AssetsUniq,
+    date: string,
     wallet: string
 ) {
-    let query = 'INSERT INTO asset(date, wallet, proto, quantity) VALUES ';
-    let values: string[] = [];
-
-    const dateStr = moment().format('YYYY-MM-DD');
+    let values: any[] = [];
 
     for (let [[proto, _], assets] of assetsUniq) {
-        values.push(`('${dateStr}', '${wallet}', ${proto}, ${assets.length})`);
+        values.push({
+            date: date,
+            wallet: wallet,
+            proto: proto,
+            quantity: assets.length,
+        });
     }
-    query += values.join(', ');
 
-    logger.debug(query);
-
-    await db.query(query, []);
+    await Asset.bulkCreate(values);
 }
 
 
@@ -79,10 +87,11 @@ async function fetchAndSaveAssets(client: ImmutableXClient, wallet: string) {
         }
     );
     const assetsUniq = new AssetsUniq(assets);
+    const dateStr = moment().format('YYYY-MM-DD');
 
     db.transaction(async (wallet) => {
-        await clearAssets(wallet);
-        await saveAssets(assetsUniq, wallet);
+        await clearAssets(dateStr, wallet);
+        await saveAssets(assetsUniq, dateStr, wallet);
     }, [wallet]);
 }
 
@@ -163,21 +172,7 @@ async function calcAssetPrice(client: ImmutableXClient, asset): Promise<bigint> 
 }
 
 
-async function getAssetsByName(client: ImmutableXClient, name:string) {
-    // Search by asset name works not by exact match, but as full-text search
-    // Try 'Tavern Brawler' for example.
-    // Use filtering by proto to get exact match
-
-    const assetRequest = await client.getAssets({
-        collection: GUCollectionAddress,
-        name: name
-    });
-
-    return assetRequest.result;
-}
-
-
-async function fetchProtoPrice(
+async function fetchAndSaveProtoPrice(
     client: ImmutableXClient, 
     proto: number
 ): Promise<{
@@ -196,13 +191,21 @@ async function fetchProtoPrice(
     const dateStr = moment().format('YYYY-MM-DD');
     const priceGwei = weiToGwei(price);
 
-    const query = 'INSERT INTO proto_price(date, proto, price) VALUES ' + 
-        `('${dateStr}', ${proto}, ${priceGwei})` +
-        `ON CONFLICT (date, proto) DO UPDATE SET price = ${priceGwei}`;
-    logger.debug(query);
+    db.transaction(async () => {
+        await ProtoPrice.destroy({
+            where: {
+                date: dateStr,
+                proto: proto,
+            }
+        })
+        await ProtoPrice.create({
+            date: dateStr,
+            proto: proto,
+            price: priceGwei,
+        });
+    }, []);
 
-    await db.query(query, []);
-
+    
     return {
         proto: proto,
         price: price
@@ -212,6 +215,6 @@ async function fetchProtoPrice(
 
 export {
     createImmutableXClient,
-    fetchProtoPrice,
+    fetchAndSaveProtoPrice,
     fetchAndSaveAssets
 };
