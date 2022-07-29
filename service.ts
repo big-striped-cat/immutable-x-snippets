@@ -1,10 +1,9 @@
-import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableTransactionStatus, ImmutableXClient, valueOrThrow } from '@imtbl/imx-sdk';
-import fs from 'fs';
+import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableXClient } from '@imtbl/imx-sdk';
 import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
 import * as db from './db';
-import { ProtoPrice, Asset } from './models';
+import { ProtoPrice, Asset, Wallet } from './models';
 
 import { logger } from './logger';
 
@@ -34,6 +33,15 @@ async function createImmutableXClient(): Promise<ImmutableXClient> {
 }
 
 
+async function findOrCreateWallet(address: string): Promise<[Wallet, boolean]> {
+    return await Wallet.findOrCreate({
+        where: {
+            address: address
+        }
+    });
+}
+
+
 async function fetchAssets(client: ImmutableXClient, options: object): Promise<any[]> {
     let assetCursor
     let assets: any[] = []
@@ -53,7 +61,7 @@ async function clearAssets(
     await Asset.destroy({
         where: {
             date: date,
-            wallet: wallet,
+            address: wallet,
         }
     });
 }
@@ -69,7 +77,7 @@ async function saveAssets(
     for (let [[proto, _], assets] of assetsUniq) {
         values.push({
             date: date,
-            wallet: wallet,
+            address: wallet,
             proto: proto,
             quantity: assets.length,
         });
@@ -214,6 +222,7 @@ async function fetchAndSaveProtoPrice(
 
 
 export {
+    findOrCreateWallet,
     createImmutableXClient,
     fetchAndSaveProtoPrice,
     fetchAndSaveAssets

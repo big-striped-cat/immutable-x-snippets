@@ -1,10 +1,37 @@
-import { DataTypes } from 'sequelize';
+import { DataTypes, Model } from 'sequelize';
 import { sequelize } from './db';
+
+
+class Wallet extends Model {}
+
+
+Wallet.init({
+    id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        primaryKey: true
+    },
+    address: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true
+    },
+    created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW
+    }
+}, {
+    sequelize,
+    modelName: 'Wallet',
+    tableName: 'wallet',
+    timestamps: false
+});
 
 
 const ProtoPrice = sequelize.define('ProtoPrice', {
     id: {
-        type: DataTypes.BIGINT,
+        type: DataTypes.INTEGER,
         autoIncrement: true,
         primaryKey: true
     },
@@ -28,7 +55,7 @@ const ProtoPrice = sequelize.define('ProtoPrice', {
 
 const Asset = sequelize.define('Asset', {
     id: {
-        type: DataTypes.BIGINT,
+        type: DataTypes.INTEGER,
         autoIncrement: true,
         primaryKey: true
     },
@@ -54,4 +81,4 @@ const Asset = sequelize.define('Asset', {
 });
 
 
-export { ProtoPrice, Asset };
+export { Wallet, ProtoPrice, Asset };
