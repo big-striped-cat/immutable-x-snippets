@@ -2,7 +2,7 @@ CREATE TABLE asset (
     id serial PRIMARY KEY,
     date date NOT NULL,
     wallet VARCHAR NOT NULL,
-    values jsonb NOT NULL default '{}'
+    proto INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    CONSTRAINT date_wallet_proto_uniq UNIQUE (date, wallet, proto)
 );
-
-CREATE UNIQUE INDEX date_wallet_uniq_idx ON asset (date, wallet);
