@@ -2,6 +2,8 @@ import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableXCl
 import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
+import { Op } from 'sequelize';
+
 import * as db from './db';
 import { ProtoPrice, Asset, Wallet } from './models';
 
@@ -56,12 +58,12 @@ async function fetchAssets(client: ImmutableXClient, options: object): Promise<a
 
 async function clearAssets(
     date: string,
-    wallet: string
+    wallet: Wallet
 ) {    
     await Asset.destroy({
         where: {
             date: date,
-            address: wallet,
+            wallet_id: wallet.get('id'),
         }
     });
 }
@@ -70,14 +72,14 @@ async function clearAssets(
 async function saveAssets(
     assetsUniq: AssetsUniq,
     date: string,
-    wallet: string
+    wallet_id: number
 ) {
     let values: any[] = [];
 
     for (let [[proto, _], assets] of assetsUniq) {
         values.push({
             date: date,
-            address: wallet,
+            wallet_id: wallet_id,
             proto: proto,
             quantity: assets.length,
         });
@@ -87,11 +89,11 @@ async function saveAssets(
 }
 
 
-async function fetchAndSaveAssets(client: ImmutableXClient, wallet: string) {
+async function fetchAndSaveAssets(client: ImmutableXClient, wallet: Wallet) {
     const assets = await fetchAssets(
         client, {
             collection: GUCollectionAddress,
-            user: wallet
+            user: wallet.get('address')
         }
     );
     const assetsUniq = new AssetsUniq(assets);
@@ -99,7 +101,7 @@ async function fetchAndSaveAssets(client: ImmutableXClient, wallet: string) {
 
     db.transaction(async (wallet) => {
         await clearAssets(dateStr, wallet);
-        await saveAssets(assetsUniq, dateStr, wallet);
+        await saveAssets(assetsUniq, dateStr, wallet.get('id'));
     }, [wallet]);
 }
 
@@ -221,9 +223,25 @@ async function fetchAndSaveProtoPrice(
 }
 
 
+async function findWalletsByAddress(addresses: string[]): Promise<Wallet[]> {
+    let filters = {};
+
+    if (addresses.length) {
+        filters = {
+            where: {
+                address: addresses
+            }
+        }
+    }
+    const wallets = await Wallet.findAll(filters);
+    return wallets;
+}
+
+
 export {
     findOrCreateWallet,
     createImmutableXClient,
     fetchAndSaveProtoPrice,
-    fetchAndSaveAssets
+    fetchAndSaveAssets,
+    findWalletsByAddress
 };
