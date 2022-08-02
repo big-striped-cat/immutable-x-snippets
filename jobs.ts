@@ -2,6 +2,7 @@ import { ImmutableXClient } from '@imtbl/imx-sdk';
 import _ from 'underscore';
 
 import { AsyncIndependentJob, AsyncJobSequence, RetryOptions, AsyncJob } from './etl';
+import { Wallet } from './models';
 import { fetchAndSaveProtoPrice, fetchAndSaveAssets } from './service';
 
 
@@ -39,7 +40,7 @@ function createFetchProtoRangePriceJob(
 
 function createFetchAndSaveAssetsJob(
     client: ImmutableXClient,
-    wallet: string
+    wallet: Wallet
 ) {
     return new AsyncIndependentJob(
         _.partial(fetchAndSaveAssets, client, wallet),

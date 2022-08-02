@@ -63,8 +63,8 @@ const Asset = sequelize.define('Asset', {
         type: DataTypes.DATEONLY,
         allowNull: false,
     },
-    wallet: {
-        type: DataTypes.STRING,
+    wallet_id: {
+        type: DataTypes.INTEGER,
         allowNull: false,
     },
     proto: {

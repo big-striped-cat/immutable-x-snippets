@@ -1,10 +1,11 @@
 import { Command } from 'commander';
 
-import { createImmutableXClient, findOrCreateWallet } from './service';
+import { createImmutableXClient, findOrCreateWallet, findWalletsByAddress } from './service';
 import { createFetchAndSaveAssetsJob, createFetchProtoRangePriceJob } from './jobs';
 
 import { logger } from './logger';
 import { sequelize } from './db';
+import { Wallet } from './models';
 
 
 const program = new Command();
@@ -53,10 +54,18 @@ program.command('fetch-prices')
 
 
 program.command('fetch-assets')
-    .argument('<string>', 'wallet')
-    .action(async (wallet) => {
+    .argument('[string...]', 'wallets')
+    .action(async (wallets) => {
+        logger.info(`wallets ${wallets}`);
+        
+        wallets = await findWalletsByAddress(wallets);
+        
         const client = await createImmutableXClient();
-        await createFetchAndSaveAssetsJob(client, wallet).exec();
+
+        for (let wallet of wallets) {
+            logger.info(`Fetching assets for wallet ${wallet.get('address')}`);
+            await createFetchAndSaveAssetsJob(client, wallet).exec();
+        }
     });
 
     
