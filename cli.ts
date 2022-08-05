@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 
-import { createImmutableXClient, findOrCreateWallet, findWalletsByAddress } from './service';
+import { calcAssetsValueHistory, createImmutableXClient, findOrCreateWallet, findWalletByAddress, findWalletsByAddress } from './service';
 import { createFetchAndSaveAssetsJob, createFetchProtoRangePriceJob } from './jobs';
 
 import { logger } from './logger';
@@ -68,7 +68,23 @@ program.command('fetch-assets')
         }
     });
 
-    
+
+program.command('history')
+    .argument('<string>', 'wallet')
+    .argument('<string>', 'date_from')
+    .argument('<string>', 'date_to')
+    .action(async (wallet, date_from, date_to) => {
+        wallet = await findWalletByAddress(wallet);
+
+        const history = await calcAssetsValueHistory({
+            wallet_id: wallet.get('id'),
+            date_from: date_from,
+            date_to: date_to
+        }, null);
+        console.table(history);
+    });
+
+
 (async () => {
     try {
         await program.parseAsync();

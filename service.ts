@@ -2,7 +2,7 @@ import { ETHTokenType, ImmutableMethodParams, ImmutableOrderStatus, ImmutableXCl
 import Web3 from 'web3-utils';
 import _ from 'underscore';
 import moment from 'moment';
-import { Op } from 'sequelize';
+import { Op, QueryOptions, QueryTypes } from 'sequelize';
 
 import * as db from './db';
 import { ProtoPrice, Asset, Wallet } from './models';
@@ -27,6 +27,12 @@ function weiToEth(value: bigint): string {
 
 function weiToGwei(value: bigint): bigint {
     return value / BigInt(10) ** BigInt(9);
+}
+
+
+function gweiToEth(value: bigint): string {
+    const valueWei = value * BigInt(10) ** BigInt(9);
+    return weiToEth(valueWei);
 }
 
 
@@ -238,10 +244,52 @@ async function findWalletsByAddress(addresses: string[]): Promise<Wallet[]> {
 }
 
 
+async function findWalletByAddress(address: string): Promise<Wallet> {
+    const wallets = await findWalletsByAddress([address]);
+    return wallets[0];
+}
+
+
+interface calcAssetsValueHistoryParams extends QueryOptions {
+    wallet_id: number
+    date_from: string,
+    date_to: string
+}
+
+
+async function calcAssetsValueHistory(params, options: any) {
+    options = options || {};
+    const unit = options.unit || 'Eth';
+
+    const query = `
+    SELECT a.date, SUM(pp.price * a.quantity) as value
+    FROM proto_price pp
+    JOIN asset a ON a.proto = pp.proto AND a.date = pp.date
+    WHERE a.wallet_id = :wallet_id
+      AND a.date BETWEEN :date_from AND :date_to
+    GROUP BY a.date
+    ORDER BY a.date`;
+
+    let history: any[] = await db.sequelize.query(query, {
+         type: QueryTypes.SELECT,
+         replacements: params
+    });
+
+    if (unit == 'Eth') {
+        for (let item of history) {
+            item.value = gweiToEth(BigInt(item.value))
+        }
+    }
+    return history;
+}
+
+
 export {
     findOrCreateWallet,
     createImmutableXClient,
     fetchAndSaveProtoPrice,
     fetchAndSaveAssets,
-    findWalletsByAddress
+    findWalletsByAddress,
+    findWalletByAddress,
+    calcAssetsValueHistory
 };

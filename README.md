@@ -31,7 +31,14 @@ Following command accepts proto range as parameter and fetches current prices fo
 node dist/cli.js fetch-prices --from <proto> --to <proto>
 ```
 
-## Further plans
+## Calculate history
 
-It is possible to calculate total assets value based on current market prices. You can compare this number and collection value on tokentrove.com.
-These numbers must be close to each other. Although numbers do not match exactly. Tokentrove implemented a bit different approach for calculating value. They use last sale price.
+Calculates total assets value history for given wallet and date range.
+```
+node dist/cli.js <wallet> <date-from> <date-to>
+```
+
+### Note on price approach
+
+You can compare output of `history` command with collection value on tokentrove.com.
+These numbers must be close. Although numbers do not match exactly. Tokentrove implemented a bit different approach for calculating value. They use last sale price.
